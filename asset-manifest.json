@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/fleet/static/js/main.20221242.js",
+    "index.html": "/fleet/index.html",
+    "main.20221242.js.map": "/fleet/static/js/main.20221242.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.20221242.js"
+  ]
+}
