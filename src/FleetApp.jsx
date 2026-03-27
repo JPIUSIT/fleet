@@ -8,8 +8,22 @@ const COLORS = {
   success: "#10b981", bg: "#f4f7f6", card: "#ffffff",
   text: "#1a2e2b", textMuted: "#6b7f7c",
 };
-const CAR_COLORS = ["#2a7d6f","#4a90d9","#9b59b6","#e67e22","#e74c3c","#1abc9c","#3498db","#f39c12"];
-const emptyNewCar = { model:"", plate:"", status:"active", insurance:"", bollo:"", revision:"", km:0, color:CAR_COLORS[0], maintenance:{ oil:{date:"",km:null}, tires:{date:"",km:null}, service:{date:"",km:null}, notes:"" }};
+const CAR_COLORS = [
+  "#2a7d6f", // Verde J+S
+  "#4a90d9", // Blu
+  "#9b59b6", // Viola
+  "#e67e22", // Arancione
+  "#e74c3c", // Rosso
+  "#1abc9c", // Verde acqua
+  "#3498db", // Azzurro cielo
+  "#f39c12", // Giallo scuro
+  "#FFE534", // Giallo canarino
+  "#8B8B8B", // Grigio topo
+  "#F0F0F0", // Bianco
+  "#3D3D3D", // Nero carbone
+  "#5BB8F5", // Azzurro chiaro
+];
+const emptyNewCar = { model:"", plate:"", status:"active", insurance:"", bollo:"", revision:"", km:0, color:CAR_COLORS[0], service_date:"", service_km:null, fuel_pin:"" };
 const HOUR_HEIGHT = 60; // px per ora nelle viste settimana/giorno
 const START_HOUR = 7;
 const HOURS = Array.from({length:14},(_,i)=>i+START_HOUR); // 7:00 - 20:00
@@ -39,11 +53,33 @@ function checkExpiry(dateStr) {
   return "ok";
 }
 function getCarAlerts(car) {
-  const checks = [
-    ["Assicurazione", car.insurance], ["Bollo", car.bollo], ["Revisione", car.revision],
-    ["Cambio olio", car.oil_date], ["Gomme", car.tires_date], ["Tagliando", car.service_date],
+  const alerts = [];
+  const dateChecks = [
+    ["Assicurazione", car.insurance],
+    ["Bollo", car.bollo],
+    ["Revisione", car.revision],
   ];
-  return checks.map(([label, date]) => ({ label, status: checkExpiry(date) })).filter(a => a.status && a.status !== "ok");
+  dateChecks.forEach(([label, date]) => {
+    const s = checkExpiry(date);
+    if(s && s !== "ok") alerts.push({ label, status: s });
+  });
+  // Alert tagliando: km + 20.000 oppure 18 mesi dalla data
+  if(car.service_date || car.service_km) {
+    let tagliandoAlert = null;
+    if(car.service_km && car.km) {
+      const kmLimit = parseInt(car.service_km) + 20000;
+      if(car.km >= kmLimit) tagliandoAlert = "expired";
+      else if(car.km >= kmLimit - 2000) tagliandoAlert = "warning";
+    }
+    if(car.service_date) {
+      const serviceDate = parseLocalDate(car.service_date);
+      const monthsSince = (new Date() - serviceDate) / (1000*60*60*24*30);
+      if(monthsSince >= 18) tagliandoAlert = "expired";
+      else if(monthsSince >= 16 && tagliandoAlert !== "expired") tagliandoAlert = "warning";
+    }
+    if(tagliandoAlert) alerts.push({ label: "Tagliando", status: tagliandoAlert });
+  }
+  return alerts;
 }
 // Arrotonda minuti ai più vicini 15
 function snapMinutes(m) { return Math.round(m / 15) * 15; }
@@ -91,23 +127,31 @@ function CarFormFields({data, setData}) {
         <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,color:COLORS.textMuted}}>Colore</label>
           <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>
             {CAR_COLORS.map(c=>(
-              <div key={c} onClick={()=>setData({...data,color:c})} style={{width:24,height:24,borderRadius:"50%",background:c,cursor:"pointer",border:data.color===c?"3px solid #000":"3px solid transparent",boxSizing:"border-box"}}/>
+              <div key={c} onClick={()=>setData({...data,color:c})} style={{width:24,height:24,borderRadius:"50%",background:c,cursor:"pointer",border:data.color===c?"3px solid #333":"3px solid transparent",boxSizing:"border-box",boxShadow:c==="#F0F0F0"?"inset 0 0 0 1px #ccc":"none"}}/>
             ))}
           </div>
         </div>
       </div>
+      {/* Ultima Manutenzione — solo Tagliando */}
       <div style={{marginTop:12,borderTop:"1px solid #eee",paddingTop:12}}>
-        <b style={{fontSize:13}}>🔧 Manutenzioni</b>
-        {[["Cambio Olio","oil_date","oil_km"],["Cambio Gomme","tires_date","tires_km"],["Tagliando","service_date","service_km"]].map(([l,kd,kkm])=>(
-          <div key={kd} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
-            <div><label style={{fontSize:12,color:COLORS.textMuted}}>{l} - Data</label>
-              <input type="date" value={data[kd]||""} onChange={e=>setData({...data,[kd]:e.target.value})} style={inputStyle}/></div>
-            <div><label style={{fontSize:12,color:COLORS.textMuted}}>{l} - Km</label>
-              <input type="number" value={data[kkm]||""} onChange={e=>setData({...data,[kkm]:parseInt(e.target.value)||null})} style={inputStyle}/></div>
-          </div>
-        ))}
-        <div style={{marginTop:8}}><label style={{fontSize:12,color:COLORS.textMuted}}>Note tecniche</label>
-          <textarea value={data.notes||""} onChange={e=>setData({...data,notes:e.target.value})} rows={2} style={{...inputStyle,resize:"vertical"}}/></div>
+        <b style={{fontSize:13}}>🔧 Ultima Manutenzione</b>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
+          <div><label style={{fontSize:12,color:COLORS.textMuted}}>Tagliando - Data</label>
+            <input type="date" value={data.service_date||""} onChange={e=>setData({...data,service_date:e.target.value})} style={inputStyle}/></div>
+          <div><label style={{fontSize:12,color:COLORS.textMuted}}>Tagliando - Km</label>
+            <input type="number" value={data.service_km||""} onChange={e=>setData({...data,service_km:parseInt(e.target.value)||null})} style={inputStyle} placeholder="Es. 45000"/></div>
+        </div>
+        <div style={{marginTop:6,padding:8,background:COLORS.primaryLight,borderRadius:6,fontSize:11,color:COLORS.textMuted}}>
+          ℹ️ Alert automatico quando i Km attuali superano i Km tagliando + 20.000, oppure dopo 18 mesi dalla data.
+        </div>
+      </div>
+      {/* Pin tessera carburante */}
+      <div style={{marginTop:12,borderTop:"1px solid #eee",paddingTop:12}}>
+        <b style={{fontSize:13}}>⛽ Tessera Carburante</b>
+        <div style={{marginTop:8}}>
+          <label style={{fontSize:12,color:COLORS.textMuted}}>Pin tessera carburante</label>
+          <input type="text" value={data.fuel_pin||""} onChange={e=>setData({...data,fuel_pin:e.target.value})} placeholder="Inserisci il PIN della tessera" style={inputStyle}/>
+        </div>
       </div>
     </>
   );
@@ -384,7 +428,6 @@ export default function FleetApp({ currentUser }) {
   function onDragStart(e, b, type) {
     if(!canDrag(b)) return;
     e.stopPropagation();
-    e.preventDefault();
     dragRef.current = {
       bookingId: b.id, type,
       startY: e.clientY,
@@ -407,17 +450,10 @@ export default function FleetApp({ currentUser }) {
       const origStartDate = new Date(origStart);
       const origEndDate = new Date(origEnd);
       if(type === "move") {
-        // Sposta tutta la prenotazione
         const newStart = new Date(origStartDate.getTime() + deltaMins * 60000);
         const newEnd = new Date(origEndDate.getTime() + deltaMins * 60000);
         return { ...b, start_date: newStart.toISOString().slice(0,16), end_date: newEnd.toISOString().slice(0,16) };
-      } else if(type === "resize-start") {
-        // Modifica l'inizio — non può superare la fine
-        const newStart = new Date(origStartDate.getTime() + deltaMins * 60000);
-        if(newStart >= origEndDate) return b;
-        return { ...b, start_date: newStart.toISOString().slice(0,16) };
-      } else { // resize-end
-        // Modifica la fine — non può andare prima dell'inizio
+      } else { // resize
         const newEnd = new Date(origEndDate.getTime() + deltaMins * 60000);
         if(newEnd <= origStartDate) return b;
         return { ...b, end_date: newEnd.toISOString().slice(0,16) };
@@ -478,9 +514,7 @@ export default function FleetApp({ currentUser }) {
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         <h2 style={{margin:0,color:COLORS.primary,fontSize:18}}>📅 Calendario Prenotazioni</h2>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          {/* 1. Label periodo corrente */}
-          <span style={{fontSize:14,fontWeight:600,color:COLORS.text,minWidth:180,textAlign:"center"}}>{label}</span>
-          {/* 2. Switcher vista: Mese | Settimana | Giorno */}
+          {/* Vista */}
           <div style={{display:"flex",background:"#f0f0f0",borderRadius:20,padding:2,gap:2}}>
             {["month","week","day"].map(v=>(
               <button key={v} onClick={()=>setCalView(v)} style={{padding:"5px 14px",background:calView===v?COLORS.primary:"transparent",color:calView===v?"#fff":COLORS.text,border:"none",borderRadius:18,cursor:"pointer",fontWeight:calView===v?700:400,fontSize:13,transition:"all 0.15s"}}>
@@ -488,9 +522,10 @@ export default function FleetApp({ currentUser }) {
               </button>
             ))}
           </div>
-          {/* 3. Oggi ‹ › */}
-          <button onClick={()=>setCurrentDate(new Date())} style={{...navBtnStyle,background:COLORS.primary,color:"#fff",border:"none"}}>Oggi</button>
+          {/* Navigazione: ‹ label Oggi › */}
           <button onClick={()=>navigateCal(-1)} style={navBtnStyle}>‹</button>
+          <span style={{fontSize:14,fontWeight:600,color:COLORS.text,minWidth:180,textAlign:"center"}}>{label}</span>
+          <button onClick={()=>setCurrentDate(new Date())} style={{...navBtnStyle,background:COLORS.primary,color:"#fff",border:"none"}}>Oggi</button>
           <button onClick={()=>navigateCal(1)} style={navBtnStyle}>›</button>
         </div>
       </div>
@@ -501,42 +536,27 @@ export default function FleetApp({ currentUser }) {
   function TimeEvent({b, allSameDay, compact=false}) {
     const s = getEventStyle(b, allSameDay);
     const canEdit = canDrag(b);
-    const HANDLE_H = 10; // altezza handle in px
     return (
       <div
         key={b.id}
-        style={{position:"absolute",top:s.top,height:s.height,left:s.left,width:s.width,background:getCarColor(b.car_id),borderRadius:6,overflow:"hidden",color:"#fff",fontSize:compact?9:11,boxShadow:"0 2px 4px rgba(0,0,0,0.2)",zIndex:dragging?.bookingId===b.id?10:2,border:b.status==="priority_request"?"2px dashed "+COLORS.warning:"1px solid rgba(255,255,255,0.2)",userSelect:"none",boxSizing:"border-box",cursor:canEdit?"grab":"default"}}
+        style={{position:"absolute",top:s.top,height:s.height,left:s.left,width:s.width,background:getCarColor(b.car_id),borderRadius:6,overflow:"hidden",color:"#fff",fontSize:compact?9:11,boxShadow:"0 2px 4px rgba(0,0,0,0.2)",zIndex:dragging?.bookingId===b.id?10:2,border:b.status==="priority_request"?"2px dashed "+COLORS.warning:"1px solid rgba(255,255,255,0.2)",cursor:canEdit?"grab":"default",userSelect:"none",boxSizing:"border-box"}}
+        onMouseDown={canEdit ? (e)=>onDragStart(e,b,"move") : undefined}
+        onClick={e=>{e.stopPropagation(); if(canEdit) openEditBooking(b);}}
         title={`${b.car_model} — ${b.user_name}\n${b.start_date.split("T")[1]?.slice(0,5)} - ${b.end_date.split("T")[1]?.slice(0,5)}`}
       >
-        {/* ✅ Handle TOP — modifica ora inizio */}
-        {canEdit && (
-          <div
-            onMouseDown={e=>{e.stopPropagation(); e.preventDefault(); onDragStart(e,b,"resize-start");}}
-            style={{position:"absolute",top:0,left:0,right:0,height:HANDLE_H,cursor:"n-resize",background:"rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3,flexShrink:0}}
-          >
-            <div style={{width:20,height:2,background:"rgba(255,255,255,0.7)",borderRadius:2}}/>
-          </div>
-        )}
-
-        {/* Corpo — sposta tutta la prenotazione */}
-        <div
-          onMouseDown={canEdit ? (e)=>{e.stopPropagation(); e.preventDefault(); onDragStart(e,b,"move");} : undefined}
-          onClick={e=>{e.stopPropagation(); if(canEdit) openEditBooking(b);}}
-          style={{padding:`${canEdit ? HANDLE_H+2 : 3}px 6px ${canEdit ? HANDLE_H+2 : 3}px 6px`,overflow:"hidden",height:"100%",cursor:canEdit?"grab":"default"}}
-        >
+        <div style={{padding:"3px 6px",overflow:"hidden"}}>
           {b.status==="priority_request" && <span style={{fontSize:9,background:COLORS.warning,borderRadius:3,padding:"0 3px",marginBottom:2,display:"inline-block"}}>⚡</span>}
           <div style={{fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{b.car_model}</div>
           {!compact && <div style={{opacity:0.9,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>👤 {b.user_name}</div>}
           {!compact && <div style={{opacity:0.85,fontSize:10}}>{b.start_date.split("T")[1]?.slice(0,5)}–{b.end_date.split("T")[1]?.slice(0,5)}</div>}
         </div>
-
-        {/* ✅ Handle BOTTOM — modifica ora fine */}
+        {/* ✅ Handle resize in basso */}
         {canEdit && (
           <div
-            onMouseDown={e=>{e.stopPropagation(); e.preventDefault(); onDragStart(e,b,"resize-end");}}
-            style={{position:"absolute",bottom:0,left:0,right:0,height:HANDLE_H,cursor:"s-resize",background:"rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}}
+            onMouseDown={e=>{e.stopPropagation(); onDragStart(e,b,"resize");}}
+            style={{position:"absolute",bottom:0,left:0,right:0,height:8,cursor:"s-resize",background:"rgba(0,0,0,0.15)",display:"flex",alignItems:"center",justifyContent:"center"}}
           >
-            <div style={{width:20,height:2,background:"rgba(255,255,255,0.7)",borderRadius:2}}/>
+            <div style={{width:20,height:2,background:"rgba(255,255,255,0.6)",borderRadius:2}}/>
           </div>
         )}
       </div>
@@ -667,6 +687,25 @@ export default function FleetApp({ currentUser }) {
                     </div>
                   ) : null;
                 })()}
+              </div>
+            );
+          })()}
+          {/* Auto preselezionata senza date */}
+          {!bookForm.start && !bookForm.end && bookForm.carId && (() => {
+            const car = cars.find(c=>c.id===parseInt(bookForm.carId));
+            if(!car) return null;
+            return (
+              <div style={{marginTop:10}}>
+                <label style={{fontSize:12,color:COLORS.textMuted}}>Auto selezionata</label>
+                <div style={{padding:"8px 10px",background:COLORS.primaryLight,borderRadius:6,fontSize:13,display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                  <span style={{width:12,height:12,borderRadius:"50%",background:car.color,display:"inline-block",flexShrink:0,boxShadow:car.color==="#F0F0F0"?"inset 0 0 0 1px #ccc":"none"}}/>
+                  <b>{car.model}</b> <span style={{color:COLORS.textMuted}}>({car.plate})</span>
+                </div>
+                {getCarAlerts(car).length>0 && (
+                  <div style={{marginTop:6,padding:8,background:"#fffbe6",border:"1px solid "+COLORS.warning,borderRadius:6}}>
+                    {getCarAlerts(car).map((a,i)=><div key={i} style={{fontSize:12,color:COLORS.warning}}>⚠️ {a.label} {a.status==="expired"?"scaduto":"in scadenza"}</div>)}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -962,11 +1001,17 @@ export default function FleetApp({ currentUser }) {
                           <b>{c.model}</b> <span style={{fontSize:12,color:COLORS.textMuted}}>• {c.plate}</span>
                           <div style={{fontSize:12,color:c.status==="active"?COLORS.success:COLORS.danger}}>{c.status==="active"?"✅ Disponibile":"🔴 Non disponibile"}</div>
                         </div>
-                        {c.status==="active" && <button onClick={()=>setBookModal(true)} style={{padding:"6px 14px",background:COLORS.primary,color:"#fff",border:"none",borderRadius:16,cursor:"pointer",fontSize:13,fontWeight:600}}>Prenota</button>}
+                        {c.status==="active" && <button onClick={()=>{ setBookForm(f=>({...f,carId:String(c.id)})); setBookModal(true); }} style={{padding:"6px 14px",background:COLORS.primary,color:"#fff",border:"none",borderRadius:16,cursor:"pointer",fontSize:13,fontWeight:600}}>Prenota</button>}
                       </div>
                       {alerts.length>0 && <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:4}}>
                         {alerts.map((a,i)=><span key={i} style={{background:COLORS.warning+"20",color:COLORS.warning,border:"1px solid "+COLORS.warning,borderRadius:12,fontSize:11,padding:"2px 8px"}}>⚠️ {a.label}</span>)}
                       </div>}
+                      {/* Pin tessera carburante visibile a tutti */}
+                      {c.fuel_pin && (
+                        <div style={{marginTop:8,padding:"6px 10px",background:"#fffbe6",border:"1px solid "+COLORS.warning,borderRadius:6,fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+                          <span>⛽</span><span style={{color:COLORS.textMuted}}>Pin tessera:</span><b style={{letterSpacing:2}}>{c.fuel_pin}</b>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1086,6 +1131,27 @@ export default function FleetApp({ currentUser }) {
                             </div>
                           ))}
                         </div>
+                        {/* Tagliando */}
+                        <div style={{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:12}}>
+                          <div style={{background:COLORS.bg,borderRadius:6,padding:6,textAlign:"center"}}>
+                            <div>🔧</div>
+                            <div style={{fontSize:10,color:COLORS.textMuted}}>Tagliando data</div>
+                            <div style={{fontSize:11,fontWeight:600}}>{c.service_date||"N/D"}</div>
+                          </div>
+                          <div style={{background:COLORS.bg,borderRadius:6,padding:6,textAlign:"center"}}>
+                            <div>📏</div>
+                            <div style={{fontSize:10,color:COLORS.textMuted}}>Tagliando km</div>
+                            <div style={{fontSize:11,fontWeight:600}}>{c.service_km ? `${parseInt(c.service_km).toLocaleString()} km` : "N/D"}</div>
+                          </div>
+                        </div>
+                        {/* Pin tessera carburante — visibile a tutti */}
+                        {c.fuel_pin && (
+                          <div style={{marginTop:8,padding:"8px 10px",background:"#fffbe6",border:"1px solid "+COLORS.warning,borderRadius:6,fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+                            <span>⛽</span>
+                            <span style={{color:COLORS.textMuted}}>Pin tessera:</span>
+                            <b style={{color:COLORS.text,letterSpacing:2}}>{c.fuel_pin}</b>
+                          </div>
+                        )}
                         <div style={{display:"flex",gap:6,marginTop:10}}>
                           <button onClick={()=>setEditCar({...c})} style={{flex:1,padding:"8px",background:COLORS.primary,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13}}>✏️ Modifica</button>
                           <button onClick={()=>setDeleteConfirm(c)} style={{padding:"8px 12px",background:"#fee",color:COLORS.danger,border:"1px solid "+COLORS.danger,borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13}}>🗑️</button>
