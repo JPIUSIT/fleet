@@ -514,7 +514,7 @@ export default function FleetApp({ currentUser }) {
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         <h2 style={{margin:0,color:COLORS.primary,fontSize:18}}>📅 Calendario Prenotazioni</h2>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          {/* Vista */}
+          {/* Switcher vista */}
           <div style={{display:"flex",background:"#f0f0f0",borderRadius:20,padding:2,gap:2}}>
             {["month","week","day"].map(v=>(
               <button key={v} onClick={()=>setCalView(v)} style={{padding:"5px 14px",background:calView===v?COLORS.primary:"transparent",color:calView===v?"#fff":COLORS.text,border:"none",borderRadius:18,cursor:"pointer",fontWeight:calView===v?700:400,fontSize:13,transition:"all 0.15s"}}>
@@ -522,9 +522,10 @@ export default function FleetApp({ currentUser }) {
               </button>
             ))}
           </div>
-          {/* Navigazione: ‹ label Oggi › */}
+          {/* Label periodo */}
+          <span style={{fontSize:14,fontWeight:600,color:COLORS.text,minWidth:160,textAlign:"center"}}>{label}</span>
+          {/* Navigazione: ‹ Oggi › */}
           <button onClick={()=>navigateCal(-1)} style={navBtnStyle}>‹</button>
-          <span style={{fontSize:14,fontWeight:600,color:COLORS.text,minWidth:180,textAlign:"center"}}>{label}</span>
           <button onClick={()=>setCurrentDate(new Date())} style={{...navBtnStyle,background:COLORS.primary,color:"#fff",border:"none"}}>Oggi</button>
           <button onClick={()=>navigateCal(1)} style={navBtnStyle}>›</button>
         </div>
