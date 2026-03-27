@@ -1008,8 +1008,8 @@ export default function FleetApp({ currentUser }) {
                       </div>}
                       {/* Pin tessera carburante visibile a tutti */}
                       {c.fuel_pin && (
-                        <div style={{marginTop:8,padding:"6px 10px",background:"#fffbe6",border:"1px solid "+COLORS.warning,borderRadius:6,fontSize:12,display:"flex",alignItems:"center",gap:6}}>
-                          <span>⛽</span><span style={{color:COLORS.textMuted}}>Pin tessera:</span><b style={{letterSpacing:2}}>{c.fuel_pin}</b>
+                        <div style={{marginTop:6,fontSize:12,display:"flex",alignItems:"center",gap:6,color:COLORS.textMuted}}>
+                          <span>⛽</span><span>Pin tessera:</span><b style={{color:COLORS.text,letterSpacing:2}}>{c.fuel_pin}</b>
                         </div>
                       )}
                     </div>
@@ -1026,6 +1026,12 @@ export default function FleetApp({ currentUser }) {
                         <div style={{fontSize:12,marginTop:2}}>📅 {b.start_date?.replace("T"," ")} → {b.end_date?.replace("T"," ")}</div>
                         <div style={{fontSize:12}}>📍 {b.destination}</div>
                         {b.reason && <div style={{fontSize:11,color:COLORS.textMuted,marginTop:2}}>💬 {b.reason}</div>}
+                        {/* Pin tessera dell'auto prenotata */}
+                        {(() => { const car = cars.find(c=>c.id===b.car_id); return car?.fuel_pin ? (
+                          <div style={{marginTop:4,fontSize:12,display:"flex",alignItems:"center",gap:6,color:COLORS.textMuted}}>
+                            <span>⛽</span><span>Pin tessera:</span><b style={{color:COLORS.text,letterSpacing:2}}>{car.fuel_pin}</b>
+                          </div>
+                        ) : null; })()}
                         <div style={{fontSize:11,marginTop:2,color:b.status==="priority_request"?COLORS.warning:COLORS.success,fontWeight:600}}>
                           {b.status==="confirmed"?"✅ Confermata":"⚡ In attesa approvazione priorità"}
                         </div>
@@ -1146,9 +1152,9 @@ export default function FleetApp({ currentUser }) {
                         </div>
                         {/* Pin tessera carburante — visibile a tutti */}
                         {c.fuel_pin && (
-                          <div style={{marginTop:8,padding:"8px 10px",background:"#fffbe6",border:"1px solid "+COLORS.warning,borderRadius:6,fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+                          <div style={{marginTop:8,fontSize:12,display:"flex",alignItems:"center",gap:6,color:COLORS.textMuted}}>
                             <span>⛽</span>
-                            <span style={{color:COLORS.textMuted}}>Pin tessera:</span>
+                            <span>Pin tessera:</span>
                             <b style={{color:COLORS.text,letterSpacing:2}}>{c.fuel_pin}</b>
                           </div>
                         )}
